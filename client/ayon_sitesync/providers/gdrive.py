@@ -128,7 +128,16 @@ class GDriveHandler(AbstractProvider):
         """
         # GDrive roots cannot be locally overridden
         # TODO implement multiple roots
-        return {"root": {"work": self.presets["root"]}}
+        # Projects may define several roots (work/publish/cache/...) but the
+        # provider preset holds a single root value - map any requested root
+        # name onto it so path templates using other roots still resolve.
+        class _SingleRoot(dict):
+            def __missing__(self, key):
+                return self["work"]
+
+        root_map = _SingleRoot()
+        root_map["work"] = self.presets["root"]
+        return {"root": root_map}
 
     def get_tree(self):
         """

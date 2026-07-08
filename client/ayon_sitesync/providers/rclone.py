@@ -255,7 +255,16 @@ class RCloneHandler(AbstractProvider):
 
     def get_roots_config(self, anatomy=None) -> dict:
         """Returns root values for path resolving."""
-        return {"root": {"work": self.presets.get("root", "/")}}
+        # Projects may define several roots (work/publish/cache/...) but the
+        # provider preset holds a single root value - map any requested root
+        # name onto it so path templates using other roots still resolve.
+        class _SingleRoot(dict):
+            def __missing__(self, key):
+                return self["work"]
+
+        root_map = _SingleRoot()
+        root_map["work"] = self.presets.get("root", "/")
+        return {"root": root_map}
 
     # Helper methods
     def _manage_web_config(self):
