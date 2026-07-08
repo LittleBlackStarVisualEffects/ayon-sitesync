@@ -1812,6 +1812,9 @@ class SiteSyncAddon(AYONAddon, ITrayAddon, IPluginPaths):
         Returns:
             list[dict]: dicts follow RepresentationSiteStateModel
         """
+        if not representation_ids:
+            return []
+
         endpoint = "{}/{}/state/representations".format(
             self.endpoint_prefix, project_name
         )

@@ -552,6 +552,9 @@ class SiteSync(BaseServerAddon):
         """List all sites on all representations and their state"""
         await check_sync_status_table(project_name)
 
+        if not representationIds:
+            return []
+
         conditions = [
             f"representation_id IN {SQLTool.array(representationIds)}"
         ]
