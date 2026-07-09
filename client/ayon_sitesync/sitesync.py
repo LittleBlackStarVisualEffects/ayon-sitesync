@@ -375,7 +375,18 @@ class SiteSyncThread(threading.Thread):
                 project_name = None
                 enabled_projects = self.addon.get_enabled_projects()
                 for project_name in enabled_projects:
-                    await self._sync_project(project_name)
+                    try:
+                        await self._sync_project(project_name)
+                    except (ConnectionResetError, ResumableError):
+                        raise
+                    except Exception:
+                        # one broken project must not stop syncing of the
+                        # other projects, skip it until next loop
+                        self.log.warning(
+                            "Unhandled exception while syncing project "
+                            "'{}', skipping it until next loop".format(
+                                project_name),
+                            exc_info=True)
 
                 duration = time.time() - start_time
                 self.log.debug("One loop took {:.2f}s".format(duration))
@@ -399,10 +410,12 @@ class SiteSyncThread(threading.Thread):
                     "ResumableError in sync loop, trying next loop",
                     exc_info=True)
             except Exception:
-                self.stop()
+                # do not kill the whole sync server on unexpected error,
+                # log it and retry on next loop after a delay
                 self.log.warning(
-                    "Unhandled except. in sync loop, stopping server",
+                    "Unhandled except. in sync loop, trying next loop",
                     exc_info=True)
+                await asyncio.sleep(60)
 
     def stop(self):
         """Sets is_running flag to false, 'check_shutdown' shuts server down"""
@@ -459,8 +472,15 @@ class SiteSyncThread(threading.Thread):
                 local_site, remote_site))
             return None, None
 
-        local_site_config = sync_config.get("sites")[local_site]
-        remote_site_config = sync_config.get("sites")[remote_site]
+        site_configs = sync_config.get("sites") or {}
+        local_site_config = site_configs.get(local_site)
+        remote_site_config = site_configs.get(remote_site)
+        if local_site_config is None or remote_site_config is None:
+            self.log.warning(
+                "Active or remote site '{}'/'{}' is not configured for "
+                "project '{}', skipping".format(
+                    local_site, remote_site, project_name))
+            return None, None
         if not all([
             _site_is_working(
                 self.addon, project_name, local_site, local_site_config

@@ -1259,8 +1259,17 @@ class SiteSyncAddon(AYONAddon, ITrayAddon, IPluginPaths):
 
         for whole_site_info in settings.get("sites", []):
             site_name = whole_site_info["name"]
+            provider = whole_site_info.get("provider")
+            if not provider or provider not in whole_site_info:
+                # site saved in Settings without provider selected would
+                # break settings preparation for all projects
+                self.log.warning(
+                    "Site '{}' does not have valid provider configured"
+                    " ('{}'), skipping it.".format(site_name, provider)
+                )
+                continue
             provider_specific = copy.deepcopy(
-                whole_site_info[whole_site_info["provider"]]
+                whole_site_info[provider]
             )
             configured_site = {
                 "enabled": True,

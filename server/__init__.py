@@ -225,7 +225,7 @@ class SiteSync(BaseServerAddon):
         await check_sync_status_table(project_name)
         conditions = []
 
-        if representationIds is not None:
+        if representationIds:
             conditions.append(f"r.id IN {SQLTool.array(representationIds)}")
 
         if folderFilter:
