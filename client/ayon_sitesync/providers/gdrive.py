@@ -128,7 +128,16 @@ class GDriveHandler(AbstractProvider):
         """
         # GDrive roots cannot be locally overridden
         # TODO implement multiple roots
-        return {"root": {"work": self.presets["root"]}}
+        # Projects may define several roots (work/publish/cache/...) but the
+        # provider preset holds a single root value - map any requested root
+        # name onto it so path templates using other roots still resolve.
+        class _SingleRoot(dict):
+            def __missing__(self, key):
+                return self["work"]
+
+        root_map = _SingleRoot()
+        root_map["work"] = self.presets["root"]
+        return {"root": root_map}
 
     def get_tree(self):
         """
@@ -508,8 +517,16 @@ class GDriveHandler(AbstractProvider):
 
     def folder_path_exists(self, file_path):
         """
-            Checks if path from 'file_path' exists. If so, return its
+            Checks if the folder path 'file_path' exists. If so, return its
             folder id.
+
+            'file_path' is expected to be a folder path (no file name). The
+            folder is resolved purely against the known folder tree instead of
+            guessing folder-vs-file from the extension. Folder names may
+            legitimately contain dots (e.g. 'girish.pv', 'mani.j',
+            'bhavana.darsi'), which the previous ``os.path.splitext`` based
+            check misread as files - that made the dotted folder unresolvable,
+            so it was never created and files landed in the parent folder.
         Args:
             file_path (string): gdrive path with / as a separator
         Returns:
@@ -518,15 +535,11 @@ class GDriveHandler(AbstractProvider):
         if not file_path:
             return False
 
-        root, ext = os.path.splitext(file_path)
-        if not ext:
-            file_path += "/"
+        dir_path = file_path.rstrip("/")
 
-        dir_path = os.path.dirname(file_path)
-
-        path = self.get_tree().get(dir_path, None)
-        if path:
-            return path["id"]
+        folder = self.get_tree().get(dir_path, None)
+        if folder:
+            return folder["id"]
 
         return False
 
@@ -539,9 +552,12 @@ class GDriveHandler(AbstractProvider):
         Returns:
             (dictionary|boolean) file metadata | False if not found
         """
-        folder_id = self.folder_path_exists(file_path)
+        # 'folder_path_exists' now resolves only real folder paths, so strip
+        # the file name here and look the file up inside its parent folder.
+        clean_path = file_path.rstrip("/")
+        folder_id = self.folder_path_exists(os.path.dirname(clean_path))
         if folder_id:
-            return self.file_exists(os.path.basename(file_path), folder_id)
+            return self.file_exists(os.path.basename(clean_path), folder_id)
         return False
 
     def file_exists(self, file_name, folder_id):

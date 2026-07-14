@@ -225,7 +225,7 @@ class SiteSync(BaseServerAddon):
         await check_sync_status_table(project_name)
         conditions = []
 
-        if representationIds is not None:
+        if representationIds:
             conditions.append(f"r.id IN {SQLTool.array(representationIds)}")
 
         if folderFilter:
@@ -551,6 +551,9 @@ class SiteSync(BaseServerAddon):
     ) -> list[RepresentationSiteStateModel]:
         """List all sites on all representations and their state"""
         await check_sync_status_table(project_name)
+
+        if not representationIds:
+            return []
 
         conditions = [
             f"representation_id IN {SQLTool.array(representationIds)}"
